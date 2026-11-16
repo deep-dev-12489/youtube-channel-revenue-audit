@@ -837,80 +837,78 @@ export async function fetchChannelZeroKey(
     console.error('Channel page scrape error:', e);
   }
 
-  // 5. Also fetch YouTube Shorts if channel is Shorts-first or has few long videos
-  if (rawVideos.length < 15) {
-    try {
-      const shortsUrl = `https://www.youtube.com/channel/${channelId}/shorts`;
-      const shortsRes = await fetch(shortsUrl, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept-Language': 'en-US,en;q=0.9',
-        },
-      });
-      const shortsHtml = await shortsRes.text();
-      const sm =
-        shortsHtml.match(/var ytInitialData = ({.*?});<\/script>/) ||
-        shortsHtml.match(/ytInitialData\s*=\s*({.*?});/);
-      if (sm) {
-        const sData = JSON.parse(sm[1]);
-        const shortsItems: any[] = [];
-        function searchShorts(obj: any) {
-          if (!obj || typeof obj !== 'object') return;
-          if (obj.shortsLockupViewModel) shortsItems.push(obj.shortsLockupViewModel);
-          if (obj.reelItemRenderer) shortsItems.push(obj.reelItemRenderer);
-          for (const k of Object.keys(obj)) searchShorts(obj[k]);
-        }
-        searchShorts(sData);
-
-        for (const item of shortsItems) {
-          const videoId =
-            item.videoId ||
-            item.onTap?.innertubeCommand?.reelWatchEndpoint?.videoId ||
-            item.entityId?.replace('shorts-shelf-item-', '');
-          if (!videoId || rawVideos.some((v) => v.id === videoId)) continue;
-
-          const vTitle =
-            item.overlayMetadata?.primaryText?.content ||
-            item.headline?.simpleText ||
-            item.accessibilityText?.split(',')[0] ||
-            'Short Video';
-
-          const viewText =
-            item.overlayMetadata?.secondaryText?.content ||
-            item.viewCountText?.simpleText ||
-            item.accessibilityText ||
-            '';
-          const views = parseYouTubeCount(viewText);
-
-          const thumbnail =
-            item.thumbnailViewModel?.thumbnailViewModel?.image?.sources?.[0]?.url ||
-            item.thumbnail?.thumbnails?.[0]?.url ||
-            `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
-
-          rawVideos.push({
-            id: videoId,
-            title: vTitle,
-            description: '',
-            publishedAt: new Date().toISOString(),
-            thumbnail,
-            duration: 'PT35S',
-            durationSeconds: 35,
-            durationFormatted: '0:35',
-            isShort: true,
-            views,
-            likes: Math.round(views * 0.05),
-            comments: Math.round(views * 0.008),
-            tags: [],
-            url: `https://www.youtube.com/shorts/${videoId}`,
-            isOutlier: false,
-            outlierMultiplier: 1,
-          });
-        }
+  // 5. Also fetch YouTube Shorts tab so both Long-form and Shorts are comprehensively analyzed
+  try {
+    const shortsUrl = `https://www.youtube.com/channel/${channelId}/shorts`;
+    const shortsRes = await fetch(shortsUrl, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+    });
+    const shortsHtml = await shortsRes.text();
+    const sm =
+      shortsHtml.match(/var ytInitialData = ({.*?});<\/script>/) ||
+      shortsHtml.match(/ytInitialData\s*=\s*({.*?});/);
+    if (sm) {
+      const sData = JSON.parse(sm[1]);
+      const shortsItems: any[] = [];
+      function searchShorts(obj: any) {
+        if (!obj || typeof obj !== 'object') return;
+        if (obj.shortsLockupViewModel) shortsItems.push(obj.shortsLockupViewModel);
+        if (obj.reelItemRenderer) shortsItems.push(obj.reelItemRenderer);
+        for (const k of Object.keys(obj)) searchShorts(obj[k]);
       }
-    } catch (shortsErr) {
-      console.error('Shorts fetch error:', shortsErr);
+      searchShorts(sData);
+
+      for (const item of shortsItems) {
+        const videoId =
+          item.videoId ||
+          item.onTap?.innertubeCommand?.reelWatchEndpoint?.videoId ||
+          item.entityId?.replace('shorts-shelf-item-', '');
+        if (!videoId || rawVideos.some((v) => v.id === videoId)) continue;
+
+        const vTitle =
+          item.overlayMetadata?.primaryText?.content ||
+          item.headline?.simpleText ||
+          item.accessibilityText?.split(',')[0] ||
+          'Short Video';
+
+        const viewText =
+          item.overlayMetadata?.secondaryText?.content ||
+          item.viewCountText?.simpleText ||
+          item.accessibilityText ||
+          '';
+        const views = parseYouTubeCount(viewText);
+
+        const thumbnail =
+          item.thumbnailViewModel?.thumbnailViewModel?.image?.sources?.[0]?.url ||
+          item.thumbnail?.thumbnails?.[0]?.url ||
+          `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+
+        rawVideos.push({
+          id: videoId,
+          title: vTitle,
+          description: '',
+          publishedAt: new Date().toISOString(),
+          thumbnail,
+          duration: 'PT35S',
+          durationSeconds: 35,
+          durationFormatted: '0:35',
+          isShort: true,
+          views,
+          likes: Math.round(views * 0.05),
+          comments: Math.round(views * 0.008),
+          tags: [],
+          url: `https://www.youtube.com/shorts/${videoId}`,
+          isOutlier: false,
+          outlierMultiplier: 1,
+        });
+      }
     }
+  } catch (shortsErr) {
+    console.error('Shorts fetch error:', shortsErr);
   }
 
   // 6. Fallback to RSS Feed if HTML scrape had 0 videos
