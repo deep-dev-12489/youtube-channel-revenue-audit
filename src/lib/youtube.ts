@@ -471,8 +471,30 @@ export async function fetchPast90DaysVideos(
 }
 
 /**
- * Fallback live resolver that fetches public YouTube channel info & RSS video feed
- * with ZERO API key required.
+ * Safely parses YouTube view/subscriber/upload count strings into exact numbers.
+ * Handles "9.4K", "9.4 thousand views", "1.2M", "1.2 million views", "27,256,630 views", etc.
+ */
+export function parseYouTubeCount(str: string): number {
+  if (!str) return 0;
+  const cleanStr = str.replace(/,/g, '').trim();
+  const match = cleanStr.match(/([0-9.]+)\s*([kmbKMB]|thousand|million|billion)?/i);
+  if (!match) return 0;
+
+  const num = parseFloat(match[1]);
+  if (isNaN(num)) return 0;
+
+  const unit = (match[2] || '').toLowerCase();
+  if (unit.startsWith('m')) return Math.round(num * 1_000_000);
+  if (unit.startsWith('k') || unit.startsWith('t')) return Math.round(num * 1_000);
+  if (unit.startsWith('b')) return Math.round(num * 1_000_000_000);
+
+  return Math.round(num);
+}
+
+/**
+ * Fallback live resolver that fetches public YouTube channel info & videos
+ * with ZERO API key required. Accurately extracts real channel lifetime views,
+ * total upload count, and individual video view counts.
  */
 export async function fetchChannelZeroKey(
   input: string
@@ -487,6 +509,7 @@ export async function fetchChannelZeroKey(
   } catch {}
 
   let channelId = '';
+  let initialHomeHtml = '';
 
   // 1. Resolve channel ID
   if (/^UC[\w-]{22}$/.test(clean)) {
@@ -507,12 +530,13 @@ export async function fetchChannelZeroKey(
           headers: {
             'User-Agent':
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
           },
         });
-        const html = await pageRes.text();
+        initialHomeHtml = await pageRes.text();
         const idMatch =
-          html.match(/channel_id=([a-zA-Z0-9_-]{20,28})/) ||
-          html.match(/"externalId":"([^"]+)"/);
+          initialHomeHtml.match(/channel_id=([a-zA-Z0-9_-]{20,28})/) ||
+          initialHomeHtml.match(/"externalId":"([^"]+)"/);
         if (idMatch) {
           channelId = idMatch[1];
         }
@@ -528,11 +552,132 @@ export async function fetchChannelZeroKey(
     );
   }
 
-  // 2. Fetch Channel Metadata and Videos directly from public HTML (/videos)
-  let title = 'YouTube Channel';
-  let avatar = '';
-  let description = '';
+  // 2. Fetch Channel Home Page (for exact subscribers, total upload count, and about continuation)
+  let homeHtml = initialHomeHtml;
+  if (!homeHtml) {
+    try {
+      const homeRes = await fetch(`https://www.youtube.com/channel/${channelId}`, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+      });
+      homeHtml = await homeRes.text();
+    } catch (homeErr) {
+      console.error('Home fetch error:', homeErr);
+    }
+  }
+
+  const homeM = homeHtml.match(/ytInitialData\s*=\s*({.*?});/);
+  const homeData = homeM ? JSON.parse(homeM[1]) : {};
+  const headerVM = homeData.header?.pageHeaderRenderer?.content?.pageHeaderViewModel;
+
+  let title = headerVM?.title?.dynamicTextViewModel?.text?.content || '';
+  if (!title) {
+    const t = homeHtml.match(/<meta property="og:title" content="([^"]+)"/);
+    if (t) title = t[1].replace(' - YouTube', '').trim();
+    else title = 'YouTube Channel';
+  }
+
+  let avatar = headerVM?.image?.decoratedAvatarViewModel?.avatar?.avatarViewModel?.image?.sources?.[0]?.url || '';
+  if (!avatar) {
+    const a = homeHtml.match(/<meta property="og:image" content="([^"]+)"/);
+    if (a) avatar = a[1];
+  }
+
+  let description = headerVM?.description?.descriptionPreviewViewModel?.description?.content || '';
+  if (!description) {
+    const d = homeHtml.match(/<meta property="og:description" content="([^"]+)"/);
+    if (d) description = d[1];
+  }
+
+  let handle = '';
   let subscriberCount = 0;
+  let realTotalVideosCount = 0;
+
+  const metadataRows = headerVM?.metadata?.contentMetadataViewModel?.metadataRows || [];
+  for (const row of metadataRows) {
+    for (const part of row.metadataParts || []) {
+      const text = part.text?.content || '';
+      const access = part.accessibilityLabel || '';
+
+      if (text.startsWith('@')) {
+        handle = text;
+      }
+
+      if (/subscriber/i.test(text) || /subscriber/i.test(access)) {
+        subscriberCount = parseYouTubeCount(access || text);
+      }
+
+      if (/video/i.test(text) || /video/i.test(access)) {
+        const vidMatch = (text || access).match(/([0-9.,]+)\s*video/i);
+        if (vidMatch) {
+          realTotalVideosCount = parseInt(vidMatch[1].replace(/,/g, ''), 10);
+        }
+      }
+    }
+  }
+
+  // Fallbacks for total videos & subscribers
+  if (realTotalVideosCount === 0) {
+    const vMatch = homeHtml.match(/"(\d[\d,.]*)\s+videos"/i);
+    if (vMatch) realTotalVideosCount = parseInt(vMatch[1].replace(/,/g, ''), 10);
+  }
+  if (subscriberCount === 0) {
+    const sMatch = homeHtml.match(/"(\d[\d,.]*\s*(?:K|M|B|thousand|million|billion)?)\s+subscribers"/i);
+    if (sMatch) subscriberCount = parseYouTubeCount(sMatch[1]);
+  }
+
+  // 3. Fetch Real Lifetime Views via About Dialog Continuation
+  let channelLifetimeViews = 0;
+  let country = '';
+  try {
+    let continuationToken = '';
+    function findContinuation(o: any) {
+      if (!o || typeof o !== 'object') return;
+      if (o.continuationEndpoint?.continuationCommand?.token) {
+        continuationToken = o.continuationEndpoint.continuationCommand.token;
+      }
+      for (const k of Object.keys(o)) findContinuation(o[k]);
+    }
+    findContinuation(headerVM);
+
+    const apiKey = (homeHtml.match(/"INNERTUBE_API_KEY":"([^"]+)"/) || [])[1] || 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
+    if (continuationToken) {
+      const cRes = await fetch(`https://www.youtube.com/youtubei/v1/browse?key=${apiKey}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+        body: JSON.stringify({
+          context: {
+            client: {
+              clientName: 'WEB',
+              clientVersion: '2.20261112.10.00',
+              hl: 'en',
+              gl: 'US',
+            },
+          },
+          continuation: continuationToken,
+        }),
+      });
+      const cData = await cRes.json();
+      const str = JSON.stringify(cData);
+      const vMatch = str.match(/([0-9,]+)\s+views/i);
+      if (vMatch) {
+        channelLifetimeViews = parseInt(vMatch[1].replace(/,/g, ''), 10);
+      }
+      const cMatch = str.match(/Country:\s*([A-Za-z ]+)/i) || str.match(/"country":\{"simpleText":"([^"]+)"/);
+      if (cMatch) country = cMatch[1];
+    }
+  } catch (err) {
+    console.error('About dialog fetch error:', err);
+  }
+
+  // 4. Fetch Channel Videos directly from public HTML (/videos)
   let rawVideos: VideoItem[] = [];
 
   try {
@@ -546,37 +691,6 @@ export async function fetchChannelZeroKey(
     });
     const html = await pageRes.text();
 
-    const tMatch =
-      html.match(/<meta property="og:title" content="([^"]+)"/) ||
-      html.match(/<title>([^<]+)<\/title>/);
-    if (tMatch) {
-      title = tMatch[1].replace(' - YouTube', '').trim();
-    }
-
-    const aMatch =
-      html.match(/<meta property="og:image" content="([^"]+)"/) ||
-      html.match(/"avatar":{"thumbnails":\[{"url":"([^"]+)"/);
-    if (aMatch) {
-      avatar = aMatch[1];
-    }
-
-    const dMatch = html.match(/<meta property="og:description" content="([^"]+)"/);
-    if (dMatch) {
-      description = dMatch[1];
-    }
-
-    const subsRegex = /([0-9.]+)\s*([kmbKMB]|million|billion)?\s*subscribers/i;
-    const subsMatch = html.match(subsRegex);
-    if (subsMatch) {
-      const num = parseFloat(subsMatch[1]);
-      const unit = (subsMatch[2] || '').toLowerCase();
-      if (unit.startsWith('m')) subscriberCount = Math.round(num * 1_000_000);
-      else if (unit.startsWith('k')) subscriberCount = Math.round(num * 1_000);
-      else if (unit.startsWith('b')) subscriberCount = Math.round(num * 1_000_000_000);
-      else subscriberCount = Math.round(num);
-    }
-
-    // Try extracting from ytInitialData
     const m =
       html.match(/var ytInitialData = ({.*?});<\/script>/) ||
       html.match(/ytInitialData\s*=\s*({.*?});/);
@@ -621,16 +735,10 @@ export async function fetchChannelZeroKey(
               const text = part.text?.content || '';
               const accessLabel = part.accessibilityLabel || '';
 
-              if (accessLabel.toLowerCase().includes('views') || text.toLowerCase().includes('views')) {
-                const vMatch = (accessLabel || text).match(/([0-9.,]+)\s*([kmbKMB]|million|billion)?/i);
-                if (vMatch) {
-                  const num = parseFloat(vMatch[1].replace(/,/g, ''));
-                  const unit = (vMatch[2] || '').toLowerCase();
-                  if (unit.startsWith('m')) views = Math.round(num * 1_000_000);
-                  else if (unit.startsWith('k')) views = Math.round(num * 1_000);
-                  else if (unit.startsWith('b')) views = Math.round(num * 1_000_000_000);
-                  else views = Math.round(num);
-                }
+              const targetStr = `${text} ${accessLabel}`;
+              if (targetStr.toLowerCase().includes('view') || /^[0-9.,]+[kmbKMB]$/.test(text)) {
+                const parsedV = parseYouTubeCount(targetStr);
+                if (parsedV > views) views = parsedV;
               }
 
               if (accessLabel.toLowerCase().includes('ago') || text.toLowerCase().includes('ago')) {
@@ -683,23 +791,15 @@ export async function fetchChannelZeroKey(
           });
         }
 
-        // Also process standard videoRenderers if lockups weren't found
+        // Process standard videoRenderers if lockups weren't found
         if (rawVideos.length === 0 && videoRenderers.length > 0) {
           for (const vr of videoRenderers) {
             const videoId = vr.videoId;
             if (!videoId) continue;
             const vTitle = vr.title?.runs?.[0]?.text || vr.title?.simpleText || 'Untitled';
             const viewsText = vr.viewCountText?.simpleText || vr.viewCountText?.runs?.[0]?.text || '';
-            let views = 0;
-            const vMatch = viewsText.match(/([0-9.,]+)\s*([kmbKMB]|million|billion)?/i);
-            if (vMatch) {
-              const num = parseFloat(vMatch[1].replace(/,/g, ''));
-              const unit = (vMatch[2] || '').toLowerCase();
-              if (unit.startsWith('m')) views = Math.round(num * 1_000_000);
-              else if (unit.startsWith('k')) views = Math.round(num * 1_000);
-              else if (unit.startsWith('b')) views = Math.round(num * 1_000_000_000);
-              else views = Math.round(num);
-            }
+            const views = parseYouTubeCount(viewsText);
+
             const durationFormatted = vr.lengthText?.simpleText || '3:00';
             let durationSeconds = 180;
             if (durationFormatted.includes(':')) {
@@ -737,7 +837,7 @@ export async function fetchChannelZeroKey(
     console.error('Channel page scrape error:', e);
   }
 
-  // 2b. Also fetch YouTube Shorts if channel is Shorts-first or has few long videos
+  // 5. Also fetch YouTube Shorts if channel is Shorts-first or has few long videos
   if (rawVideos.length < 15) {
     try {
       const shortsUrl = `https://www.youtube.com/channel/${channelId}/shorts`;
@@ -776,23 +876,12 @@ export async function fetchChannelZeroKey(
             item.accessibilityText?.split(',')[0] ||
             'Short Video';
 
-          let views = 0;
           const viewText =
             item.overlayMetadata?.secondaryText?.content ||
             item.viewCountText?.simpleText ||
             item.accessibilityText ||
             '';
-          const vMatch =
-            viewText.match(/([0-9.,]+)\s*([kmbKMB]|million|billion)?\s*views/i) ||
-            viewText.match(/([0-9.,]+)\s*([kmbKMB]|million|billion)?/i);
-          if (vMatch) {
-            const num = parseFloat(vMatch[1].replace(/,/g, ''));
-            const unit = (vMatch[2] || '').toLowerCase();
-            if (unit.startsWith('m')) views = Math.round(num * 1_000_000);
-            else if (unit.startsWith('k')) views = Math.round(num * 1_000);
-            else if (unit.startsWith('b')) views = Math.round(num * 1_000_000_000);
-            else views = Math.round(num);
-          }
+          const views = parseYouTubeCount(viewText);
 
           const thumbnail =
             item.thumbnailViewModel?.thumbnailViewModel?.image?.sources?.[0]?.url ||
@@ -824,7 +913,7 @@ export async function fetchChannelZeroKey(
     }
   }
 
-  // 3. Fallback to RSS Feed if HTML scrape had 0 videos
+  // 6. Fallback to RSS Feed if HTML scrape had 0 videos
   if (rawVideos.length === 0) {
     try {
       const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
@@ -889,18 +978,25 @@ export async function fetchChannelZeroKey(
     );
   }
 
-  const totalViews = rawVideos.reduce((acc, v) => acc + v.views, 0);
-  const avgViews = rawVideos.length > 0 ? Math.round(totalViews / rawVideos.length) : 0;
+  const catalogViewsSum = rawVideos.reduce((acc, v) => acc + v.views, 0);
+  const avgViews = rawVideos.length > 0 ? Math.round(catalogViewsSum / rawVideos.length) : 0;
+
+  // Accurate lifetime views fallback
+  const finalLifetimeViews =
+    channelLifetimeViews > 0
+      ? channelLifetimeViews
+      : Math.round(catalogViewsSum * Math.max(1, (realTotalVideosCount || rawVideos.length) / rawVideos.length));
 
   const channelInfo: ChannelInfo = {
     id: channelId,
     title,
-    handle: `@${title.replace(/\s+/g, '')}`,
+    handle: handle || `@${title.replace(/\s+/g, '')}`,
     description,
     avatarUrl: avatar,
     subscriberCount,
-    totalViews: totalViews * 5, // Estimated lifetime views baseline
-    totalVideosCount: rawVideos.length,
+    totalViews: finalLifetimeViews,
+    totalVideosCount: realTotalVideosCount || rawVideos.length,
+    country: country || undefined,
   };
 
   const enrichedVideos = enrichVideosWithOutliers(rawVideos, avgViews, channelInfo);
