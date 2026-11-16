@@ -115,12 +115,12 @@ export default function HomePage() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Search & Channel Input */}
         <section className="space-y-4">
-          <div className="text-center max-w-2xl mx-auto space-y-2 mb-6">
-            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              YouTube Competitor & Channel Analytics
+          <div className="text-center max-w-3xl mx-auto space-y-2 mb-6">
+            <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
+              YouTube Channel, Revenue & Algorithm Audit Studio
             </h1>
             <p className="text-sm text-zinc-400">
-              Audit 90-day upload rhythms, detect viral outliers, uncover AI-extracted niche strategy, and export markdown reports.
+              Complete channel audit: 90-day upload cadence, monetization & RPM estimation, viral outlier detection (&gt;2x avg), and Gemini AI niche intelligence.
             </p>
           </div>
 

@@ -11,39 +11,54 @@ export function generateMarkdownReport(data: ChannelAnalysisResponse): string {
   const lines: string[] = [];
 
   // Header
-  lines.push(`# YouTube Channel & Competitor Intelligence Report`);
+  lines.push(`# YouTube Channel & Monetization Intelligence Audit Report`);
   lines.push(`**Channel:** ${channel.title} (${channel.handle})`);
   lines.push(`**Generated At:** ${new Date(fetchedAt).toLocaleString()}`);
-  lines.push(`**Data Source:** ${source === 'api' ? 'YouTube Data API v3' : source === 'rss' ? 'Live Public YouTube Feed' : 'Demo Dataset'}`);
+  lines.push(`**Data Source:** ${source === 'api' ? 'YouTube Data API v3' : source === 'rss' ? 'Live Public YouTube Feed (Zero-Key Mode)' : 'Demo Dataset'}`);
   lines.push(`**Channel Link:** ${channel.customUrl ? `https://www.youtube.com/${channel.customUrl}` : `https://www.youtube.com/channel/${channel.id}`}`);
   lines.push('');
 
   // 1. Channel Overview
-  lines.push(`## 1. Channel Overview`);
+  lines.push(`## 1. Channel Overview & Health Metrics`);
   lines.push(`- **Subscribers:** ${formatCompactNumber(channel.subscriberCount)} (${channel.subscriberCount.toLocaleString()})`);
   lines.push(`- **Lifetime Views:** ${formatCompactNumber(channel.totalViews)} (${channel.totalViews.toLocaleString()})`);
   lines.push(`- **Total Uploads (Lifetime):** ${channel.totalVideosCount.toLocaleString()}`);
-  if (channel.country) lines.push(`- **Country:** ${channel.country}`);
-  lines.push(`- **Bio/Description:**`);
+  if (channel.country) lines.push(`- **Audience Country Origin:** ${channel.country}`);
+  lines.push(`- **Channel Bio:**`);
   lines.push(`  > ${channel.description ? channel.description.replace(/\n+/g, ' ') : 'No description provided.'}`);
   lines.push('');
 
-  // 2. 90-Day Upload & Performance KPIs
-  lines.push(`## 2. 90-Day Performance & Upload Cadence KPIs`);
-  lines.push(`| Metric | Value | Insights / Benchmark |`);
+  // 2. 90-Day Upload Cadence & Performance KPIs
+  lines.push(`## 2. 90-Day Upload Cadence & Consistency Audit`);
+  lines.push(`| Metric | Value | Audit Benchmark |`);
   lines.push(`| :--- | :--- | :--- |`);
-  lines.push(`| **Analyzed Uploads (90d)** | ${kpis.totalVideos90d} videos | Recent active catalog |`);
-  lines.push(`| **Weekly Upload Frequency** | ${kpis.weeklyUploadFrequency} vids/week | ${kpis.weeklyUploadFrequency >= 3 ? 'High velocity output' : kpis.weeklyUploadFrequency >= 1 ? 'Consistent weekly rhythm' : 'Low upload frequency'} |`);
+  lines.push(`| **Analyzed Uploads (90d)** | ${kpis.totalVideos90d} videos | Recent active catalog window |`);
+  lines.push(`| **Weekly Upload Frequency** | ${kpis.weeklyUploadFrequency} vids/week | ${kpis.weeklyUploadFrequency >= 3 ? '🔥 High velocity output' : kpis.weeklyUploadFrequency >= 1 ? '⚡ Consistent weekly rhythm' : '🐢 Low upload frequency'} |`);
   lines.push(`| **Average Upload Gap** | ${kpis.averageUploadGapDays} days | Average gap between consecutive uploads |`);
   lines.push(`| **Average Views** | ${formatCompactNumber(kpis.averageViews)} | Median Views: ${formatCompactNumber(kpis.medianViews)} |`);
   lines.push(`| **Shorts vs. Long-form** | ${kpis.longPercentage}% Long / ${kpis.shortsPercentage}% Shorts | ${kpis.longCount} Long-form, ${kpis.shortsCount} Shorts |`);
-  lines.push(`| **Outlier Hit Rate (>2x Avg)** | ${kpis.outlierCount} videos (${kpis.outlierRate}%) | Videos generating more than 2x channel average |`);
+  lines.push(`| **Outlier Hit Rate (>2x Avg)** | ${kpis.outlierCount} videos (${kpis.outlierRate}%) | Outlier videos exceeding 2x channel average |`);
   lines.push(`| **Highest Video Views** | ${formatCompactNumber(kpis.highestViews)} | Peak performer in window |`);
   lines.push('');
 
-  // 3. Gemini Strategic AI Niche & Content Dossier
+  // 3. Monetization & Estimated Revenue Audit
+  if (kpis.estimatedRevenue) {
+    const rev = kpis.estimatedRevenue;
+    lines.push(`## 3. Channel Monetization & Estimated AdSense Revenue Audit`);
+    lines.push(`> [!NOTE]`);
+    lines.push(`> Estimates are benchmarked against niche-adjusted RPM models, audience geography, and video format distribution (Long-form vs Shorts).`);
+    lines.push('');
+    lines.push(`| Metric | USD ($) | INR (₹) | Audit Notes |`);
+    lines.push(`| :--- | :--- | :--- | :--- |`);
+    lines.push(`| **Estimated 90-Day Ad Revenue** | $${rev.min90d.toLocaleString()} – $${rev.max90d.toLocaleString()} | ₹${rev.min90dInr.toLocaleString()} – ₹${rev.max90dInr.toLocaleString()} | Active 90-day window total |`);
+    lines.push(`| **Projected Monthly Run-Rate** | $${rev.avgMonthlyMin.toLocaleString()} – $${rev.avgMonthlyMax.toLocaleString()}/mo | ₹${rev.avgMonthlyMinInr.toLocaleString()} – ₹${rev.avgMonthlyMaxInr.toLocaleString()}/mo | Normalized 30-day run-rate |`);
+    lines.push(`| **Modeled Niche RPM Benchmark** | ~$${rev.rpmAverage} / 1,000 views | ~₹${Math.round(rev.rpmAverage * 86.5)} / 1,000 views | Niche baseline revenue per mille |`);
+    lines.push('');
+  }
+
+  // 4. Gemini Strategic AI Niche & Content Dossier
   if (geminiInsights) {
-    lines.push(`## 3. Gemini AI Strategic Niche & Algorithmic Dossier`);
+    lines.push(`## 4. Gemini AI Strategic Niche & Algorithmic Moat Dossier`);
     lines.push(`- **Primary Niche:** ${geminiInsights.niche}`);
     lines.push(`- **Sub-Niche:** ${geminiInsights.subNiche}`);
     lines.push('');
@@ -103,9 +118,9 @@ export function generateMarkdownReport(data: ChannelAnalysisResponse): string {
     }
   }
 
-  // 4. Viral Outlier Videos
+  // 5. Viral Outlier Videos
   if (outliers.length > 0) {
-    lines.push(`## 4. Viral Outlier Videos (>2x Channel Average Views)`);
+    lines.push(`## 5. Viral Outlier Videos (>2x Channel Average Views)`);
     lines.push(`| Title | Views | Multiplier | Duration | Link |`);
     lines.push(`| :--- | :--- | :--- | :--- | :--- |`);
     outliers.forEach((v) => {
@@ -115,8 +130,8 @@ export function generateMarkdownReport(data: ChannelAnalysisResponse): string {
     lines.push('');
   }
 
-  // 5. Full Video Catalog
-  lines.push(`## 5. Complete Video Performance Catalog (${videos.length} Videos)`);
+  // 6. Full Video Catalog
+  lines.push(`## 6. Complete Video Performance Catalog (${videos.length} Videos)`);
   lines.push(`| # | Title | Published | Format | Duration | Views | Likes | Link |`);
   lines.push(`| :-: | :--- | :--- | :--- | :--- | :--- | :--- | :--- |`);
   videos.forEach((v, idx) => {
@@ -127,7 +142,7 @@ export function generateMarkdownReport(data: ChannelAnalysisResponse): string {
   lines.push('');
 
   lines.push(`---`);
-  lines.push(`*Report generated automatically by TubePulse - YouTube Competitor & Channel Analytics Studio*`);
+  lines.push(`*Report generated automatically by TubePulse Pro - YouTube Channel & Revenue Audit Studio*`);
 
   return lines.join('\n');
 }
@@ -141,7 +156,7 @@ export function downloadMarkdownReport(data: ChannelAnalysisResponse): void {
   const url = URL.createObjectURL(blob);
 
   const cleanTitle = (data.channel.title || 'Channel').replace(/[^a-zA-Z0-9_-]/g, '_');
-  const filename = `${cleanTitle}_YouTube_Analytics_Report.md`;
+  const filename = `${cleanTitle}_YouTube_Analytics_Audit_Report.md`;
 
   const link = document.createElement('a');
   link.href = url;

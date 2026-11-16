@@ -1,140 +1,75 @@
-# TubePulse 🎬 — YouTube Competitor & Channel Analytics Studio
+# 🚀 TubePulse Pro — YouTube Channel, Revenue & Algorithm Audit Studio
 
 [![Next.js](https://img.shields.io/badge/Next.js-15.1.7-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19.0-61DAFB?style=for-the-badge&logo=react)](https://react.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38B2AC?style=for-the-badge&logo=tailwind-css)](https://tailwindcss.com/)
 [![Gemini AI](https://img.shields.io/badge/Google_Gemini-2.0_Flash-4285F4?style=for-the-badge&logo=google)](https://aistudio.google.com/)
-[![Cross-Platform](https://img.shields.io/badge/Platform-macOS_%7C_Windows_%7C_Linux-blueviolet?style=for-the-badge)](https://github.com/deep-dev-12489/youtube-channel-analysis)
+[![Cross-Platform](https://img.shields.io/badge/Platform-macOS_%7C_Windows_%7C_Linux-blueviolet?style=for-the-badge)](https://github.com/deep-dev-12489/youtube-channel-revenue-audit)
 
-A high-performance YouTube competitor and channel intelligence dashboard. Analyzes 90-day upload cadences, flags viral outlier videos (>2x channel average views), extracts strategic content moats and audience personas with **Google Gemini AI**, and features a **1-click Markdown (`.md`) full-data export**.
+**TubePulse Pro** is an enterprise-grade YouTube channel intelligence and monetization auditing studio. Designed for creators, media agencies, and algorithmic growth strategists to stress-test channel health, estimate AdSense earnings, detect viral outliers, dissect competitive moats using **Google Gemini AI**, and export structured intelligence dossiers in Markdown (`.md`).
 
-Works **out-of-the-box with Zero API Keys** (via an intelligent public scraping engine) or with your own YouTube Data API v3 & Gemini API keys.
+Works **100% out-of-the-box with Zero API Keys** (via an intelligent public scraping engine) or with your own YouTube Data API v3 & Gemini API keys.
 
 ---
 
-## ⚡ Cross-Platform Quickstart
+## 🧪 What This Software Audits & Tests
 
-This repository contains dedicated environment setups for both **macOS** and **Windows**.
+TubePulse Pro performs deep algorithmic and statistical tests across **6 critical dimensions of any YouTube channel**:
+
+| # | Dimension | What It Tests & Calculates | Why It Matters |
+| :-: | :--- | :--- | :--- |
+| 💰 | **Monetization & Revenue Audit** | • 90-Day AdSense Revenue Range ($ & ₹)<br>• Projected Monthly Run-Rate<br>• Niche-Adjusted RPM ($3.5–$8.5 for Tech/Finance, $0.4–$1.5 for Entertainment)<br>• Shorts vs Long-Form Revenue Efficiency | Benchmarks whether a channel is monetizing effectively and tests its true commercial value. |
+| ⏱️ | **Upload Cadence & Consistency** | • 90-Day Upload Volume<br>• Weekly Upload Pace (vids/week)<br>• Average Upload Gap (days between uploads) | Measures creator consistency, burnout risk, and channel velocity. |
+| 🎯 | **Algorithmic Outlier Testing** | • Video Multiplier vs Channel Baseline<br>• **>2.0x Outlier Hit Rate**<br>• Peak Performer Identification | Tests which video topics & titles broke through the YouTube recommendation algorithm. |
+| 🧠 | **Gemini AI Strategic Moat** | • Primary Niche & Sub-Niche Classification<br>• Content Pillars & Strategic Moat<br>• High-CTR Top Performing Angles<br>• Target Viewer Persona & Pain Points<br>• Competitor Takeaways & Next Video Hooks | Uncovers why the audience watches and provides a playbook to replicate top angles. |
+| 📊 | **Format & Duration Dynamics** | • Shorts vs Long-Form Distribution Ratio<br>• Video Duration vs Views Correlation<br>• Chronological Views Velocity Timeline | Tests whether the channel succeeds through short-form viral loops or long-form retention. |
+| 📄 | **Markdown (.md) Dossier Export** | • 1-Click Complete Raw & Analyzed Data Extraction<br>• Formatted Tables with Direct YouTube Links | Ready-to-use executive report for agency audits, client pitches, and competitor tracking. |
+
+---
+
+## ⚡ Cross-Platform Quickstart (macOS & Windows)
+
+Dedicated 1-click launchers and environment configurations are included for both operating systems:
 
 ### 🍏 macOS Setup
 
-#### Option A: One-Click Launcher (Terminal)
-Open Terminal in the project root:
+#### 1-Click Launcher (Terminal)
 ```bash
+git clone https://github.com/deep-dev-12489/youtube-channel-revenue-audit.git
+cd youtube-channel-revenue-audit
 chmod +x start-mac.sh
 ./start-mac.sh
 ```
-*This script automatically verifies Node.js, configures `.env.local`, installs packages, launches Next.js, and opens http://localhost:3000 in your default browser.*
-
-#### Option B: Manual Setup
-```bash
-# 1. Clone repository
-git clone https://github.com/deep-dev-12489/youtube-channel-analysis.git
-cd youtube-channel-analysis
-
-# 2. Setup environment
-cp .env.mac.example .env.local
-
-# 3. Install dependencies & start
-npm install
-npm run dev
-```
+*Automatically checks Node.js, configures `.env.local` from macOS template, installs dependencies, launches the server, and opens http://localhost:3000.*
 
 ---
 
 ### 🪟 Windows Setup
 
-#### Option A: One-Click Launcher (Double-Click)
-- Simply double-click **`start-windows.bat`** in the project folder.
-- Or in **PowerShell**:
-  ```powershell
-  .\scripts\start-windows.ps1
-  ```
-*This automatically checks Node.js, configures `.env.local`, runs `npm install`, launches Next.js, and opens http://localhost:3000.*
-
-#### Option B: Manual Setup (CMD / PowerShell)
-```cmd
-:: 1. Clone repository
-git clone https://github.com/deep-dev-12489/youtube-channel-analysis.git
-cd youtube-channel-analysis
-
-:: 2. Setup environment
-copy .env.windows.example .env.local
-
-:: 3. Install dependencies & start
-npm install
-npm run dev
-```
-
----
-
-## 🎯 Key Features
-
-- **🔎 Universal Channel Input**: Search by Channel Name, Handle (`@fireship`, `@thefoodgupshup`), Channel URL, or Channel ID (`UC...`).
-- **🛡️ Zero-Key Public Scraping Engine**: Analyze channels without needing a Google Cloud API key! Works on standard long-form videos and Shorts-only channels alike.
-- **📊 90-Day Cadence & Health KPIs**:
-  - Total Videos (past 90 days)
-  - Weekly Upload Frequency (velocity metric)
-  - Average Upload Gap (days between consecutive videos)
-  - Average Views & Median Views benchmark
-  - Shorts vs. Long-form video distribution ratio
-- **🔥 Viral Outlier Detection**: Automatically isolates and highlights videos outperforming the channel's 90-day average by **>2.0x**.
-- **🤖 Gemini AI Algorithmic Dossier**:
-  - Niche & Sub-Niche classification
-  - Strategic Moat & Positioning
-  - Content Pillars
-  - Top-Performing Angles with explanations & examples
-  - Target Viewer Persona & Pain Points
-  - Competitor Takeaways & Next Video Hooks
-- **📈 Interactive Recharts**:
-  - Views Over Time (chronological timeline)
-  - Duration vs. Views Performance scatter/bar analysis
-- **📝 1-Click Markdown (.md) Report Export**:
-  - Download a structured, clean `.md` intelligence dossier containing channel metadata, 90d KPIs, Gemini AI strategy breakdown, outlier hit list, and full 90-day video performance catalog.
+#### 1-Click Launcher (Double-Click)
+1. Clone the repository:
+   ```cmd
+   git clone https://github.com/deep-dev-12489/youtube-channel-revenue-audit.git
+   cd youtube-channel-revenue-audit
+   ```
+2. Double-click **`start-windows.bat`** in the folder!
+   *(Or in PowerShell run: `.\scripts\start-windows.ps1`)*
 
 ---
 
 ## ⚙️ Environment Variables (Optional)
 
-Configure in `.env.local` or through the interactive in-app **Settings Modal**:
+Configure via `.env.local` or the in-app **Settings Modal**:
 
 ```env
-# Optional: YouTube Data API v3 Key
-# (If omitted, automatic public resolver handles all channels)
+# Optional: YouTube Data API v3 Key (If empty, automatic zero-key public scraper takes over!)
 YOUTUBE_API_KEY=
 
-# Optional: Google Gemini API Key
-# (From https://aistudio.google.com/)
+# Optional: Google Gemini API Key (From https://aistudio.google.com/)
 GEMINI_API_KEY=
 
-# Port (Default: 3000)
+# Port Configuration
 PORT=3000
-```
-
----
-
-## 📦 Project Structure
-
-```
-youtube-channel-analysis/
-├── start-windows.bat          # 1-Click Windows Batch launcher
-├── start-mac.sh               # 1-Click macOS Bash launcher
-├── scripts/
-│   ├── start-windows.ps1      # PowerShell launcher
-│   └── start-mac.sh           # macOS shell script
-├── .env.example               # Universal environment template
-├── .env.windows.example       # Windows environment template
-├── .env.mac.example           # macOS environment template
-├── src/
-│   ├── app/
-│   │   ├── api/analyze/       # Backend API endpoint (YouTube + Gemini + Fallbacks)
-│   │   ├── layout.tsx         # Root layout & styling
-│   │   └── page.tsx           # Main analytics dashboard
-│   ├── components/            # UI components (KPICards, VideoTable, Charts, etc.)
-│   ├── lib/                   # Core business logic (youtube scraper, gemini, markdownExport)
-│   └── types/                 # TypeScript interfaces
-├── package.json
-└── README.md
 ```
 
 ---
